@@ -1,0 +1,195 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <title>Динозаврик: Плавная анимация и Звук</title>
+    <style>
+        :root { --bg: #f7f7f7; --text: #535353; --canvas-bg: #fff; }
+        body.dark-mode { --bg: #202124; --text: #e8eaed; --canvas-bg: #202124; }
+        body { text-align: center; font-family: 'Courier New', Courier, monospace; overflow: hidden; margin: 0; background-color: var(--bg); color: var(--text); transition: 0.3s; }
+        canvas { border-bottom: 2px solid var(--text); margin-top: 10px; cursor: pointer; background: var(--canvas-bg); }
+        .ui-panel { display: flex; justify-content: space-around; align-items: center; padding: 10px; background: rgba(0,0,0,0.05); }
+        .energy-bar { width: 200px; height: 6px; background: #ddd; margin: 10px auto; border-radius: 3px; }
+        #energyFill { height: 100%; background: #0096ff; width: 100%; transition: width 0.1s; }
+        .shop { margin-bottom: 10px; }
+        .skin-btn { padding: 5px 10px; border: 2px solid var(--text); background: #fff; cursor: pointer; font-size: 11px; margin: 0 5px; }
+        .active-skin { border-color: #ff9800; background: #fff3e0; }
+    </style>
+</head>
+<body>
+    <div class="ui-panel">
+        <div>МОНЕТЫ: <b id="coinCount">0</b> 💰</div>
+        <button onclick="document.body.classList.toggle('dark-mode')" style="cursor:pointer">ТЕМА</button>
+        <div>РЕКОРД: <b id="highScoreText">0</b></div>
+    </div>
+
+    <div class="shop" id="skinShop"></div>
+    <div class="energy-bar"><div id="energyFill"></div></div>
+    
+    <canvas id="gameCanvas"></canvas>
+    <div style="font-size:12px; margin-top:5px;">SHIFT — ЗАМЕДЛЕНИЕ | ПРОБЕЛ — ПРЫЖОК</div>
+
+    <script>
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+        canvas.width = 800; canvas.height = 220;
+
+        let coins = parseInt(localStorage.getItem('dinoCoins')) || 0;
+        let highScore = parseInt(localStorage.getItem('dinoHighScore')) || 0;
+        let unlockedSkins = JSON.parse(localStorage.getItem('dinoSkins')) || ['#535353'];
+        let currentSkin = localStorage.getItem('dinoActiveSkin') || '#535353';
+
+        const skins = [
+            { name: 'КЛАССИК', color: '#535353', price: 0 },
+            { name: 'ЛИМОН', color: '#f1c40f', price: 20 },
+            { name: 'НЕОН', color: '#2ecc71', price: 40 },
+            { name: 'МАДЖЕНТА', color: '#e91e63', price: 60 }
+        ];
+
+        let score = 0, gameSpeed = 6, isGameOver = false, frame = 0, slowMo = false, energy = 100;
+        const dino = { x: 50, y: 150, w: 44, h: 47, dy: 0, jumpForce: 13, gravity: 0.7, grounded: false };
+        const obstacles = [], circles = [];
+
+        // --- ЗВУКОВОЙ ДВИЖОК ---
+        const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        function playTone(freq, type, duration, vol = 0.05) {
+            if (audioCtx.state === 'suspended') audioCtx.resume();
+            const osc = audioCtx.createOscillator();
+            const gain = audioCtx.createGain();
+            osc.type = type;
+            osc.frequency.setValueAtTime(freq, audioCtx.currentTime);
+            gain.gain.setValueAtTime(vol, audioCtx.currentTime);
+            gain.gain.exponentialRampToValueAtTime(0.0001, audioCtx.currentTime + duration);
+            osc.connect(gain); gain.connect(audioCtx.destination);
+            osc.start(); osc.stop(audioCtx.currentTime + duration);
+        }
+
+        const sounds = {
+            jump: () => playTone(450, 'square', 0.1),
+            die: () => { playTone(150, 'square', 0.2); setTimeout(() => playTone(100, 'square', 0.3), 50); },
+            buy: () => playTone(800, 'sine', 0.15)
+        };
+
+        function updateUI() {
+            document.getElementById('coinCount').innerText = coins;
+            document.getElementById('highScoreText').innerText = Math.floor(highScore/10);
+            const shop = document.getElementById('skinShop');
+            shop.innerHTML = '';
+            skins.forEach(s => {
+                const owned = unlockedSkins.includes(s.color);
+                const btn = document.createElement('button');
+                btn.className = 'skin-btn' + (currentSkin === s.color ? ' active-skin' : '');
+                btn.innerHTML = `${s.name}<br>${owned ? 'ВЫБРАТЬ' : s.price+'💰'}`;
+                btn.onclick = () => {
+                    if (owned) { currentSkin = s.color; sounds.jump(); }
+                    else if (coins >= s.price) { 
+                        coins -= s.price; unlockedSkins.push(s.color); currentSkin = s.color;
+                        sounds.buy();
+                    }
+                    localStorage.setItem('dinoCoins', coins);
+                    localStorage.setItem('dinoSkins', JSON.stringify(unlockedSkins));
+                    localStorage.setItem('dinoActiveSkin', currentSkin);
+                    updateUI();
+                };
+                shop.appendChild(btn);
+            });
+        }
+
+        function drawDino(x, y, f, isGrounded) {
+            const s = 4;
+            const bounce = isGrounded ? Math.sin(f * 0.2) * 2 : 0;
+            const tilt = isGrounded ? Math.sin(f * 0.1) * 0.05 : -0.1;
+            
+            ctx.save();
+            ctx.translate(x + 20, y + 40);
+            ctx.rotate(tilt);
+            ctx.translate(-20, -40 + bounce);
+            
+            ctx.fillStyle = currentSkin;
+            const tailMove = Math.cos(f * 0.2) * 3;
+            ctx.fillRect(-s, 20 + tailMove, s, 12); 
+            ctx.fillRect(0, 16, 24, 24); 
+            ctx.fillRect(8, 20, 32, 16);
+            ctx.fillRect(20, 0, 20, 12); 
+            ctx.fillRect(20, 12, 32, 8);
+            ctx.fillStyle = '#fff'; ctx.fillRect(24, 4, 4, 4); 
+            ctx.fillStyle = currentSkin;
+            if (isGrounded) {
+                const legCycle = Math.floor(f / 6) % 2;
+                if (legCycle === 0) { ctx.fillRect(8, 40, 4, 8); ctx.fillRect(24, 40, 8, 4); }
+                else { ctx.fillRect(8, 40, 8, 4); ctx.fillRect(28, 40, 4, 8); }
+            } else {
+                ctx.fillRect(8, 38, 8, 4); ctx.fillRect(24, 38, 8, 4);
+            }
+            ctx.restore();
+        }
+
+        function update() {
+            if (isGameOver) return;
+            frame++;
+            if (slowMo && energy > 0) energy -= 0.5;
+            else { energy = Math.min(100, energy + 0.2); slowMo = false; }
+            document.getElementById('energyFill').style.width = energy + '%';
+
+            let dt = slowMo ? 0.3 : 1;
+            dino.dy += dino.gravity * dt;
+            dino.y += dino.dy * dt;
+
+            if (dino.y + dino.h > canvas.height) { dino.y = canvas.height - dino.h; dino.dy = 0; dino.grounded = true; }
+
+            circles.forEach((c, i) => { c.radius += 4 * dt; c.opacity -= 0.03 * dt; if (c.opacity <= 0) circles.splice(i, 1); });
+
+            if (Math.random() < 0.015 && (obstacles.length === 0 || obstacles[obstacles.length-1].x < canvas.width-300)) {
+                obstacles.push({ x: canvas.width, y: Math.random() > 0.8 ? 120 : 180, w: 30, h: 40 });
+            }
+
+            obstacles.forEach((o, i) => {
+                o.x -= gameSpeed * dt;
+                if (dino.x < o.x + o.w && dino.x + dino.w > o.x && dino.y < o.y + o.h && dino.y + dino.h > o.y) {
+                    isGameOver = true;
+                    sounds.die();
+                    coins += Math.floor(score / 1500);
+                    if (score > highScore) highScore = score;
+                    localStorage.setItem('dinoCoins', coins);
+                    localStorage.setItem('dinoHighScore', highScore);
+                    updateUI();
+                }
+                if (o.x + o.w < 0) obstacles.splice(i, 1);
+            });
+
+            score += dt; gameSpeed += 0.001 * dt;
+            draw();
+            requestAnimationFrame(update);
+        }
+
+        function draw() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            circles.forEach(c => {
+                ctx.beginPath(); ctx.strokeStyle = `rgba(150, 150, 150, ${c.opacity})`;
+                ctx.arc(c.x, c.y, c.radius, 0, Math.PI * 2); ctx.stroke();
+            });
+            drawDino(dino.x, dino.y, frame, dino.grounded);
+            ctx.fillStyle = '#33cc33'; obstacles.forEach(o => ctx.fillRect(o.x, o.y, o.w, o.h));
+            ctx.fillStyle = getComputedStyle(document.body).getPropertyValue('--text');
+            ctx.font = 'bold 16px Courier New'; ctx.textAlign = 'right';
+            ctx.fillText(Math.floor(score/10).toString().padStart(5, '0'), canvas.width-20, 30);
+            if (isGameOver) { ctx.textAlign = 'center'; ctx.fillText("ИГРА ОКОНЧЕНА. ПРОБЕЛ - РЕСТАРТ", canvas.width/2, canvas.height/2); }
+        }
+
+        window.onkeydown = (e) => {
+            if (e.code === 'Space' || e.code === 'ArrowUp') {
+                if (isGameOver) { score = 0; gameSpeed = 6; obstacles.length = 0; isGameOver = false; update(); }
+                else if (dino.grounded) {
+                    sounds.jump();
+                    dino.dy = -dino.jumpForce; dino.grounded = false; 
+                    circles.push({x:dino.x+22, y:dino.y+47, radius:2, opacity:1});
+                }
+            }
+            if (e.code === 'ShiftLeft') slowMo = true;
+        };
+        window.onkeyup = (e) => { if (e.code === 'ShiftLeft') slowMo = false; };
+
+        updateUI(); update();
+    </script>
+</body>
+</html>
