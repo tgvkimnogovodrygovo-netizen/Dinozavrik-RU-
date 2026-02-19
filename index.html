@@ -2,194 +2,214 @@
 <html lang="ru">
 <head>
     <meta charset="UTF-8">
-    <title>Динозаврик: Плавная анимация и Звук</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Minecraft Server</title>
+    <link href="https://fonts.googleapis.com" rel="stylesheet">
     <style>
-        :root { --bg: #f7f7f7; --text: #535353; --canvas-bg: #fff; }
-        body.dark-mode { --bg: #202124; --text: #e8eaed; --canvas-bg: #202124; }
-        body { text-align: center; font-family: 'Courier New', Courier, monospace; overflow: hidden; margin: 0; background-color: var(--bg); color: var(--text); transition: 0.3s; }
-        canvas { border-bottom: 2px solid var(--text); margin-top: 10px; cursor: pointer; background: var(--canvas-bg); }
-        .ui-panel { display: flex; justify-content: space-around; align-items: center; padding: 10px; background: rgba(0,0,0,0.05); }
-        .energy-bar { width: 200px; height: 6px; background: #ddd; margin: 10px auto; border-radius: 3px; }
-        #energyFill { height: 100%; background: #0096ff; width: 100%; transition: width 0.1s; }
-        .shop { margin-bottom: 10px; }
-        .skin-btn { padding: 5px 10px; border: 2px solid var(--text); background: #fff; cursor: pointer; font-size: 11px; margin: 0 5px; }
-        .active-skin { border-color: #ff9800; background: #fff3e0; }
+        body, html {
+            margin: 0; padding: 0; height: 100%;
+            font-family: 'Montserrat', sans-serif;
+            background: #090A0F; color: white;
+            overflow: hidden;
+        }
+
+        /* ЭКРАН ВХОДА */
+        #overlay {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background: radial-gradient(circle, #1B2735 0%, #000 100%);
+            display: flex; justify-content: center; align-items: center;
+            z-index: 999; transition: 0.8s ease-in-out;
+        }
+        .enter-btn {
+            padding: 20px 50px; font-size: 1.2rem; font-weight: 800;
+            color: #00f2fe; background: none; border: 2px solid #00f2fe;
+            border-radius: 50px; cursor: pointer; transition: 0.3s;
+            box-shadow: 0 0 20px rgba(0, 242, 254, 0.3);
+            letter-spacing: 2px;
+        }
+        .enter-btn:hover { background: #00f2fe; color: #000; box-shadow: 0 0 40px #00f2fe; }
+
+        /* ГЛАВНЫЙ КОНТЕНТ */
+        #main-content {
+            display: flex; justify-content: center; align-items: center;
+            height: 100vh; position: relative; opacity: 0; transition: 1.5s;
+        }
+
+        /* ДВИЖУЩИЕСЯ ЗВЕЗДЫ */
+        #stars-container {
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+            z-index: 0; pointer-events: none;
+        }
+        .star {
+            position: absolute; background: white; border-radius: 50%; opacity: 0.5;
+            animation: drift var(--duration) linear infinite, twinkle 2s infinite ease-in-out;
+        }
+        @keyframes drift {
+            from { transform: translateY(0); }
+            to { transform: translateY(-100vh); } /* Движение вверх */
+        }
+        @keyframes twinkle {
+            0%, 100% { opacity: 0.3; }
+            50% { opacity: 1; }
+        }
+
+        .card {
+            background-color: rgba(30, 34, 45, 0.85);
+            padding: 40px; border-radius: 35px;
+            box-shadow: 0 25px 60px rgba(0, 0, 0, 0.7);
+            text-align: center; width: 350px;
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            backdrop-filter: blur(15px); z-index: 10;
+        }
+
+        .server-icon {
+            width: 100px; height: 100px; margin: 0 auto 25px;
+            background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
+            border-radius: 35px; display: flex; justify-content: center; align-items: center;
+            box-shadow: 0 10px 25px rgba(0, 242, 254, 0.3);
+        }
+        .server-icon svg { width: 60px; height: 60px; }
+
+        h1 {
+            color: #4facfe; font-weight: 800; font-size: 2.2rem;
+            margin: 0 0 20px 0; text-transform: uppercase;
+            text-shadow: 0 0 20px rgba(79, 172, 254, 0.6);
+        }
+
+        .ip-container {
+            border: 2px dashed rgba(255, 255, 255, 0.15);
+            border-radius: 20px; padding: 20px; cursor: pointer;
+            background-color: rgba(0, 0, 0, 0.2); transition: 0.3s ease;
+        }
+        .ip-container:hover { 
+            border-color: #00f2fe; 
+            background-color: rgba(0, 242, 254, 0.05);
+            transform: scale(1.02);
+        }
+        .ip-address { color: #00f2fe; font-size: 1.3rem; font-weight: 600; display: block; }
+        .copy-text { font-size: 0.6rem; color: #7a7a7a; text-transform: uppercase; margin-top: 5px; display: block;}
+
+        /* СТАТУС С ВОЛНАМИ */
+        .status { 
+            margin-top: 30px; display: flex; align-items: center; 
+            justify-content: center; gap: 12px; font-size: 0.85rem; 
+        }
+        .dot-wrapper {
+            position: relative; width: 10px; height: 10px;
+            display: flex; align-items: center; justify-content: center;
+        }
+        .dot { 
+            width: 10px; height: 10px; background-color: #2ecc71; 
+            border-radius: 50%; z-index: 2;
+        }
+        /* Волны от точки */
+        .wave {
+            position: absolute; width: 10px; height: 10px;
+            background-color: #2ecc71; border-radius: 50%;
+            opacity: 0.6; z-index: 1;
+            animation: wave-ripple 2s infinite ease-out;
+        }
+        .wave:nth-child(2) { animation-delay: 1s; }
+
+        @keyframes wave-ripple {
+            0% { transform: scale(1); opacity: 0.6; }
+            100% { transform: scale(4); opacity: 0; }
+        }
+
+        #toast {
+            visibility: hidden; background: #fff; color: #000; padding: 12px 25px;
+            border-radius: 50px; position: fixed; bottom: 30px; font-weight: 800; z-index: 100;
+        }
+        #toast.show { visibility: visible; animation: fIn 0.5s, fOut 0.5s 2s; }
+        @keyframes fIn { from {opacity: 0; transform: translateY(20px);} to {opacity: 1; transform: translateY(0);} }
+        @keyframes fOut { from {opacity: 1;} to {opacity: 0;} }
     </style>
 </head>
 <body>
-    <div class="ui-panel">
-        <div>МОНЕТЫ: <b id="coinCount">0</b> 💰</div>
-        <button onclick="document.body.classList.toggle('dark-mode')" style="cursor:pointer">ТЕМА</button>
-        <div>РЕКОРД: <b id="highScoreText">0</b></div>
+
+    <div id="overlay">
+        <button class="enter-btn" onclick="initSite()">ВОЙТИ НА САЙТ</button>
     </div>
 
-    <div class="shop" id="skinShop"></div>
-    <div class="energy-bar"><div id="energyFill"></div></div>
-    
-    <canvas id="gameCanvas"></canvas>
-    <div style="font-size:12px; margin-top:5px;">SHIFT — ЗАМЕДЛЕНИЕ | ПРОБЕЛ — ПРЫЖОК</div>
+    <!-- Музыка -->
+    <audio id="bg-music" loop>
+        <source src="https://cdn.pixabay.com" type="audio/mpeg">
+    </audio>
+
+    <div id="main-content">
+        <div id="stars-container"></div>
+        
+        <div class="card">
+            <div class="server-icon">
+                <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org">
+                    <path d="M12 2L3 7V17L12 22L21 17V7L12 2Z" stroke="white" stroke-width="1.5" stroke-linejoin="round""")/>>
+                    <path d="M3 7L12 12L21 7" stroke="white" stroke-width="1.5" stroke-linejoin="round""")/>>
+                    <path d="M12 22V12" stroke="white" stroke-width="1.5" stroke-linejoin="round""")/>>
+                </svg>
+            </div>
+            
+            <h1>Doraze Server</h1>
+            
+            <div class="ip-container" onclick="copyIP()">
+                <span class="ip-address" id="ip">185.9.145.8:26264</span>
+                <span class="copy-text">КЛИКНИ, ЧТОБЫ СКОПИРОВАТЬ IP</span>
+            </div>
+            
+            <div class="status">
+                <div class="dot-wrapper">
+                    <div class="dot"></div>
+                    <div class="wave"></div>
+                    <div class="wave"></div>
+                </div>
+                <span>Версия: 1.16.5 | Online</span>
+            </div>
+        </div>
+    </div>
+
+    <div id="toast">IP СКОПИРОВАН!</div>
 
     <script>
-        const canvas = document.getElementById('gameCanvas');
-        const ctx = canvas.getContext('2d');
-        canvas.width = 800; canvas.height = 220;
+        function initSite() {
+            document.getElementById('overlay').style.opacity = '0';
+            setTimeout(() => {
+                document.getElementById('overlay').style.display = 'none';
+                document.getElementById('main-content').style.opacity = '1';
+            }, 800);
 
-        let coins = parseInt(localStorage.getItem('dinoCoins')) || 0;
-        let highScore = parseInt(localStorage.getItem('dinoHighScore')) || 0;
-        let unlockedSkins = JSON.parse(localStorage.getItem('dinoSkins')) || ['#535353'];
-        let currentSkin = localStorage.getItem('dinoActiveSkin') || '#535353';
+            const audio = document.getElementById('bg-music');
+            audio.volume = 0.2;
+            audio.play();
 
-        const skins = [
-            { name: 'КЛАССИК', color: '#535353', price: 0 },
-            { name: 'ЛИМОН', color: '#f1c40f', price: 20 },
-            { name: 'НЕОН', color: '#2ecc71', price: 40 },
-            { name: 'МАДЖЕНТА', color: '#e91e63', price: 60 }
-        ];
-
-        let score = 0, gameSpeed = 6, isGameOver = false, frame = 0, slowMo = false, energy = 100;
-        const dino = { x: 50, y: 150, w: 44, h: 47, dy: 0, jumpForce: 13, gravity: 0.7, grounded: false };
-        const obstacles = [], circles = [];
-
-        // --- ЗВУКОВОЙ ДВИЖОК ---
-        const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-        function playTone(freq, type, duration, vol = 0.05) {
-            if (audioCtx.state === 'suspended') audioCtx.resume();
-            const osc = audioCtx.createOscillator();
-            const gain = audioCtx.createGain();
-            osc.type = type;
-            osc.frequency.setValueAtTime(freq, audioCtx.currentTime);
-            gain.gain.setValueAtTime(vol, audioCtx.currentTime);
-            gain.gain.exponentialRampToValueAtTime(0.0001, audioCtx.currentTime + duration);
-            osc.connect(gain); gain.connect(audioCtx.destination);
-            osc.start(); osc.stop(audioCtx.currentTime + duration);
+            // Генерация движущихся звезд
+            const container = document.getElementById('stars-container');
+            for (let i = 0; i < 120; i++) {
+                const star = document.createElement('div');
+                star.className = 'star';
+                const size = Math.random() * 2 + 1 + 'px';
+                star.style.width = size;
+                star.style.height = size;
+                star.style.left = Math.random() * 100 + '%';
+                star.style.top = Math.random() * 110 + '%'; // Начинают чуть ниже экрана
+                
+                // Рандомная скорость движения (от 10 до 25 секунд)
+                const duration = Math.random() * 15 + 10 + 's';
+                star.style.setProperty('--duration', duration);
+                
+                // Рандомная задержка, чтобы не все сразу летели
+                star.style.animationDelay = Math.random() * 10 + 's';
+                
+                container.appendChild(star);
+            }
         }
 
-        const sounds = {
-            jump: () => playTone(450, 'square', 0.1),
-            die: () => { playTone(150, 'square', 0.2); setTimeout(() => playTone(100, 'square', 0.3), 50); },
-            buy: () => playTone(800, 'sine', 0.15)
-        };
-
-        function updateUI() {
-            document.getElementById('coinCount').innerText = coins;
-            document.getElementById('highScoreText').innerText = Math.floor(highScore/10);
-            const shop = document.getElementById('skinShop');
-            shop.innerHTML = '';
-            skins.forEach(s => {
-                const owned = unlockedSkins.includes(s.color);
-                const btn = document.createElement('button');
-                btn.className = 'skin-btn' + (currentSkin === s.color ? ' active-skin' : '');
-                btn.innerHTML = `${s.name}<br>${owned ? 'ВЫБРАТЬ' : s.price+'💰'}`;
-                btn.onclick = () => {
-                    if (owned) { currentSkin = s.color; sounds.jump(); }
-                    else if (coins >= s.price) { 
-                        coins -= s.price; unlockedSkins.push(s.color); currentSkin = s.color;
-                        sounds.buy();
-                    }
-                    localStorage.setItem('dinoCoins', coins);
-                    localStorage.setItem('dinoSkins', JSON.stringify(unlockedSkins));
-                    localStorage.setItem('dinoActiveSkin', currentSkin);
-                    updateUI();
-                };
-                shop.appendChild(btn);
+        function copyIP() {
+            const text = document.getElementById('ip').innerText;
+            navigator.clipboard.writeText(text).then(() => {
+                const t = document.getElementById('toast');
+                t.className = "show";
+                setTimeout(() => t.className = "", 2500);
             });
         }
-
-        function drawDino(x, y, f, isGrounded) {
-            const s = 4;
-            const bounce = isGrounded ? Math.sin(f * 0.2) * 2 : 0;
-            const tilt = isGrounded ? Math.sin(f * 0.1) * 0.05 : -0.1;
-            
-            ctx.save();
-            ctx.translate(x + 20, y + 40);
-            ctx.rotate(tilt);
-            ctx.translate(-20, -40 + bounce);
-            
-            ctx.fillStyle = currentSkin;
-            const tailMove = Math.cos(f * 0.2) * 3;
-            ctx.fillRect(-s, 20 + tailMove, s, 12); 
-            ctx.fillRect(0, 16, 24, 24); 
-            ctx.fillRect(8, 20, 32, 16);
-            ctx.fillRect(20, 0, 20, 12); 
-            ctx.fillRect(20, 12, 32, 8);
-            ctx.fillStyle = '#fff'; ctx.fillRect(24, 4, 4, 4); 
-            ctx.fillStyle = currentSkin;
-            if (isGrounded) {
-                const legCycle = Math.floor(f / 6) % 2;
-                if (legCycle === 0) { ctx.fillRect(8, 40, 4, 8); ctx.fillRect(24, 40, 8, 4); }
-                else { ctx.fillRect(8, 40, 8, 4); ctx.fillRect(28, 40, 4, 8); }
-            } else {
-                ctx.fillRect(8, 38, 8, 4); ctx.fillRect(24, 38, 8, 4);
-            }
-            ctx.restore();
-        }
-
-        function update() {
-            if (isGameOver) return;
-            frame++;
-            if (slowMo && energy > 0) energy -= 0.5;
-            else { energy = Math.min(100, energy + 0.2); slowMo = false; }
-            document.getElementById('energyFill').style.width = energy + '%';
-
-            let dt = slowMo ? 0.3 : 1;
-            dino.dy += dino.gravity * dt;
-            dino.y += dino.dy * dt;
-
-            if (dino.y + dino.h > canvas.height) { dino.y = canvas.height - dino.h; dino.dy = 0; dino.grounded = true; }
-
-            circles.forEach((c, i) => { c.radius += 4 * dt; c.opacity -= 0.03 * dt; if (c.opacity <= 0) circles.splice(i, 1); });
-
-            if (Math.random() < 0.015 && (obstacles.length === 0 || obstacles[obstacles.length-1].x < canvas.width-300)) {
-                obstacles.push({ x: canvas.width, y: Math.random() > 0.8 ? 120 : 180, w: 30, h: 40 });
-            }
-
-            obstacles.forEach((o, i) => {
-                o.x -= gameSpeed * dt;
-                if (dino.x < o.x + o.w && dino.x + dino.w > o.x && dino.y < o.y + o.h && dino.y + dino.h > o.y) {
-                    isGameOver = true;
-                    sounds.die();
-                    coins += Math.floor(score / 1500);
-                    if (score > highScore) highScore = score;
-                    localStorage.setItem('dinoCoins', coins);
-                    localStorage.setItem('dinoHighScore', highScore);
-                    updateUI();
-                }
-                if (o.x + o.w < 0) obstacles.splice(i, 1);
-            });
-
-            score += dt; gameSpeed += 0.001 * dt;
-            draw();
-            requestAnimationFrame(update);
-        }
-
-        function draw() {
-            ctx.clearRect(0, 0, canvas.width, canvas.height);
-            circles.forEach(c => {
-                ctx.beginPath(); ctx.strokeStyle = `rgba(150, 150, 150, ${c.opacity})`;
-                ctx.arc(c.x, c.y, c.radius, 0, Math.PI * 2); ctx.stroke();
-            });
-            drawDino(dino.x, dino.y, frame, dino.grounded);
-            ctx.fillStyle = '#33cc33'; obstacles.forEach(o => ctx.fillRect(o.x, o.y, o.w, o.h));
-            ctx.fillStyle = getComputedStyle(document.body).getPropertyValue('--text');
-            ctx.font = 'bold 16px Courier New'; ctx.textAlign = 'right';
-            ctx.fillText(Math.floor(score/10).toString().padStart(5, '0'), canvas.width-20, 30);
-            if (isGameOver) { ctx.textAlign = 'center'; ctx.fillText("ИГРА ОКОНЧЕНА. ПРОБЕЛ - РЕСТАРТ", canvas.width/2, canvas.height/2); }
-        }
-
-        window.onkeydown = (e) => {
-            if (e.code === 'Space' || e.code === 'ArrowUp') {
-                if (isGameOver) { score = 0; gameSpeed = 6; obstacles.length = 0; isGameOver = false; update(); }
-                else if (dino.grounded) {
-                    sounds.jump();
-                    dino.dy = -dino.jumpForce; dino.grounded = false; 
-                    circles.push({x:dino.x+22, y:dino.y+47, radius:2, opacity:1});
-                }
-            }
-            if (e.code === 'ShiftLeft') slowMo = true;
-        };
-        window.onkeyup = (e) => { if (e.code === 'ShiftLeft') slowMo = false; };
-
-        updateUI(); update();
     </script>
 </body>
 </html>
